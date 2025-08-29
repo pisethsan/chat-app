@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Messenger‑Style Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg: #f0f2f5;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --brand: #0084ff; /* Messenger-ish */
+      --brand-dark:#0073dc;
+      --me:#0084ff;
+      --them:#e4e6eb; /* light gray bubble */
+      --input-bg:#f7f8fa;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:var(--bg); color:var(--text); display:flex; align-items:center; justify-content:center;
+    }
+    #app{ width: min(1100px, 100%); height:min(720px, 95vh); padding:16px; }
+
+    /* Auth Cards */
+    .card{
+      background:var(--card); border-radius:12px; box-shadow:0 10px 25px rgba(0,0,0,.08);
+      padding:24px; max-width:480px; margin:0 auto;
+      animation: card-enter .4s ease-out both;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    @keyframes card-enter {
+      from { opacity: 0; transform: translateY(10px) scale(.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    h2{ margin:0; }
+    p.muted{ margin:0; color:var(--muted); }
+    .row{ display:flex; gap:12px }
+    .field{ display:flex; flex-direction:column; gap:6px; width:100% }
+    .input{
+      border:1px solid var(--border); background:#fff; padding:12px 14px;
+      border-radius:10px; font-size:16px; transition: border-color .2s, box-shadow .2s;
+    }
+    .input:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 3px rgba(0,132,255,.15) }
+    .btn{
+      border:0; background:var(--brand); color:#fff; padding:12px 16px;
+      border-radius:10px; font-weight:600; cursor:pointer;
+      transition: background-color .2s, transform .2s;
+    }
+    .btn:hover{ background:var(--brand-dark); transform: translateY(-2px); }
+    .btn:active{ transform: translateY(0) scale(.98); }
+    .link{ color:var(--brand); cursor:pointer; font-weight:600 }
+
+    /* Chat Shell */
+    .chat-shell{ display:none; height:100%; }
+    .pane{ background:var(--card); border-radius:16px; box-shadow:0 10px 25px rgba(0,0,0,.08); overflow:hidden; width: 100%; }
+    .avatar{ width:40px; height:40px; border-radius:999px; background:#d1d5db; position:relative; flex:0 0 auto; overflow:hidden; display:grid; place-items:center; font-weight:700; color:#374151 }
+    .pane{ display:flex; flex-direction:column; min-width:0; position: relative; }
+    .topbar{ padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between }
+    .peer{ display:flex; align-items:center; gap:12px }
+    .peer .title{ display:flex; flex-direction:column }
+    .peer .name{ font-weight:700 }
+    .peer .status{ font-size:12px; color:var(--muted) }
+    .actions{ display:flex; align-items:center; gap:8px }
+    .pill{ background:#eef2ff; color:#4f46e5; font-weight:600; padding:6px 10px; border-radius:999px }
+    .clear-history { background: #d97706; }
+    .clear-history:hover { background: #b45309; }
+    .logout{ background:#ef4444; }
+    .logout:hover{ background:#dc2626 }
+
+    .messages{ list-style:none; margin:0; padding:16px; flex:1; overflow:auto; background:#f7f8fb; position:relative }
+    .day-divider{ text-align:center; color:#6b7280; font-size:12px; margin:12px 0; position:relative }
+    .day-divider::before, .day-divider::after{ content:""; height:1px; background:#e5e7eb; position:absolute; top:50%; width:30%; }
+    .day-divider::before{ left:0 } .day-divider::after{ right:0 }
+
+    .msg{ display:flex; align-items:flex-end; gap:8px; margin:4px 0; max-width:80%; }
+    .msg.me{ margin-left:auto; flex-direction:row-reverse; }
+    .bubble{ padding:10px 12px; border-radius:18px; line-height:1.35; word-wrap:break-word }
+    .bubble.me{ background:var(--me); color:#fff; border-bottom-right-radius:6px }
+    .bubble.them{ background:var(--them); color:#111827; border-bottom-left-radius:6px }
+    .msg .time{ font-size:11px; color:#9ca3af; margin:0 6px 3px }
+    .msg.me .time{ text-align:right }
+
+    .typing{ position:absolute; left:16px; bottom:72px; display:none; align-items:center; gap:8px; color:#6b7280; font-size:13px }
+    .dots{ display:inline-flex; gap:3px }
+    .dots span{ width:6px; height:6px; background:#9ca3af; border-radius:999px; display:inline-block; animation:bounce 1.2s infinite }
+    .dots span:nth-child(2){ animation-delay:.15s }
+    .dots span:nth-child(3){ animation-delay:.3s }
+    @keyframes bounce{ 0%,80%,100%{ transform:translateY(0)} 40%{ transform:translateY(-3px)} }
+
+    .composer{ display:flex; gap:8px; padding:12px; border-top:1px solid var(--border); background:#fff }
+    .composer .control{ border:1px solid var(--border); background:var(--input-bg); padding:10px 12px; border-radius:999px; display:flex; align-items:center; gap:8px; flex:1 }
+    .composer input{ border:0; background:transparent; outline:0; width:100%; font-size:15px }
+    .icon-btn{ border:0; background:transparent; color:var(--brand); padding:10px 12px; border-radius:999px; font-weight:700; cursor:pointer; transition: background-color .2s, transform .2s; }
+    .icon-btn:hover{ background-color: #eef2ff; transform: translateY(-1px); }
+    .icon-btn:active{ transform: translateY(0) scale(.95); }
+    .send{ background:var(--brand); color:#fff; }
+    .send:hover{ background:var(--brand-dark) }
+
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- AUTH: Sign Up -->
+  <section id="signup" class="card">
+    <h2>Sign Up</h2>
+    <p class="muted">Chat with a clean Messenger‑style UI.</p>
+    <div class="field"><label>Username</label><input id="signupUsername" class="input" placeholder="e.g. Piseth"/></div>
+    <div class="field"><label>Email</label><input id="signupEmail" type="email" class="input" placeholder="you@domain.com"/></div>
+    <div class="field"><label>Password</label><input id="signupPassword" type="password" class="input" placeholder="••••••••"/></div>
+    <div class="field"><label>Confirm Password</label><input id="signupPasswordConfirm" type="password" class="input" placeholder="••••••••"/></div>
+    <div class="row">
+      <button class="btn" onclick="signUp()">Sign Up</button>
+      <button class="btn" style="background:#e5e7eb;color:#111827" onclick="showLogin()">I have an account</button>
+    </div>
+  </section>
+
+  <!-- AUTH: Login -->
+  <section id="login" class="card" style="display:none">
+    <h2>Welcome back</h2>
+    <p class="muted">Log in to start chatting.</p>
+    <div class="field"><label>Email</label><input id="loginEmail" type="email" class="input" placeholder="you@domain.com"/></div>
+    <div class="field"><label>Password</label><input id="loginPassword" type="password" class="input" placeholder="••••••••"/></div>
+    <div class="row">
+      <button class="btn" onclick="login()">Login</button>
+      <button class="btn" style="background:#e5e7eb;color:#111827" onclick="showSignUp()">Create new account</button>
+    </div>
+  </section>
+
+  <!-- CHAT: Messenger‑style -->
+  <section id="chat" class="chat-shell" aria-live="polite">
+    <main class="pane">
+      <div class="topbar">
+        <div class="peer">
+          <div class="avatar" id="peer-avatar">C</div>
+          <div class="title">
+            <div class="name" id="room-title">Chat Room</div>
+            <div class="status" id="presence-text">Online</div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="pill" id="me-pill">Me</button>
+          <button class="btn clear-history" onclick="clearHistory()">Clear History</button>
+          <button class="btn logout" onclick="logout()">Logout</button>
+        </div>
+      </div>
+
+      <ul class="messages" id="messages"></ul>
+      <div class="typing" id="typing"><strong id="typing-user">Someone</strong> is typing <span class="dots"><span></span><span></span><span></span></span></div>
+
+      <div class="composer">
+        <div class="control">
+          <input id="messageInput" placeholder="Type a message…" oninput="onTyping()" onkeydown="if(event.key==='Enter'){handleSend()}"/>
+        </div>
+        <button id="sendOrLikeBtn" class="icon-btn send" title="Like" onclick="handleSend()">👍</button>
+      </div>
+    </main>
+  </section>
+</div>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+  // ===== State =====
+  let socket;
+  let token = localStorage.getItem('token') || '';
+  let username = localStorage.getItem('username') || '';
+  const messagesEl = document.getElementById('messages');
+
+  // ===== View switching =====
+  function showLogin(){
+    document.getElementById('signup').style.display='none';
+    document.getElementById('login').style.display='block';
+    document.getElementById('chat').style.display='none';
+  }
+  function showSignUp(){
+    document.getElementById('signup').style.display='block';
+    document.getElementById('login').style.display='none';
+    document.getElementById('chat').style.display='none';
+  }
+  function showChat(){
+    document.getElementById('signup').style.display='none';
+    document.getElementById('login').style.display='none';
+    document.getElementById('chat').style.display='flex';
+    document.getElementById('me-pill').textContent = username || 'Me';
+  }
+
+  // Auto-connect if token exists
+  if(token && username){ connectSocket(); showChat(); }
+
+  // ===== Auth API calls =====
+  async function signUp(){
+    const password = document.getElementById('signupPassword').value;
+    const confirmPassword = document.getElementById('signupPasswordConfirm').value;
+
+    if (password !== confirmPassword) {
+      return alert("Passwords do not match.");
+    }
+
+    const payload = {
+      username: document.getElementById('signupUsername').value.trim(),
+      email: document.getElementById('signupEmail').value.trim(),
+      password: password
+    };
+    const res = await fetch('/api/auth/signup',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    const data = await res.json();
+    alert(data.message || (res.ok ? 'Signed up successfully! Please login.' : 'Error'));
+    if(res.ok) showLogin();
+  }
+  async function login(){
+    const payload = {
+      email: document.getElementById('loginEmail').value.trim(),
+      password: document.getElementById('loginPassword').value
+    };
+    const res = await fetch('/api/auth/login',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    const data = await res.json();
+    if(!res.ok) return alert(data.message || 'Login failed');
+    token = data.token; username = data.username;
+    localStorage.setItem('token', token); localStorage.setItem('username', username);
+    connectSocket(); showChat();
+  }
+
+  function logout(){
+    localStorage.removeItem('token'); localStorage.removeItem('username');
+    token=''; username=''; if(socket) socket.disconnect(); showLogin();
+  }
+
+  // ===== Socket wiring =====
+  function connectSocket(){
+    socket = io({ auth:{ token } });
+
+    socket.on('connect', ()=>{ console.log('Socket connected'); });
+
+    socket.on('connect_error', (err)=>{
+      alert('Socket auth failed: '+ err.message);
+      logout();
+    });
+
+    // Backfill
+    socket.on('previous messages', (messages)=>{
+      renderMessages(messages || []);
+    });
+
+    // New message
+    socket.on('message', (m)=>{
+      addMessage(m, m.user === username);
+    });
+
+    socket.on('history cleared', () => {
+      messagesEl.innerHTML = '';
+      alert('Chat history has been cleared.');
+    });
+
+    // Presence & typing (optional server events)
+    socket.on('presence', ({ onlineCount }={})=>{
+      document.getElementById('presence-text').textContent = onlineCount ? onlineCount+ ' online' : 'Online';
+    });
+
+    socket.on('typing', ({ user })=>{
+      if(user === username) return;
+      showTyping(user);
+    });
+
+    socket.on('stop typing', ({ user })=>{
+      if(user === username) return;
+      hideTyping();
+    });
+  }
+
+  // ===== UI: Messages =====
+  function renderMessages(list){
+    messagesEl.innerHTML='';
+    let prevDay='';
+    list.forEach(m=>{
+      const d = new Date(m.createdAt || m.created_at || Date.now());
+      const dayKey = d.toDateString();
+      if(dayKey !== prevDay){
+        prevDay = dayKey; messagesEl.appendChild(dayDivider(dayKey));
+      }
+      addMessage(m, m.user === username, false);
+    });
+    scrollToBottom();
+  }
+
+  function clearHistory() {
+    if (confirm('Are you sure you want to clear the entire chat history? This cannot be undone.')) {
+      socket.emit('clear history');
+    }
+  }
+
+  function dayDivider(label){
+    const li = document.createElement('li');
+    li.className='day-divider';
+    li.textContent = label;
+    return li;
+  }
+
+  function addMessage(m, isMe=false, autoScroll=true){
+    const li = document.createElement('li');
+    li.className = 'msg'+ (isMe? ' me':'');
+
+    const avatar = document.createElement('div');
+    avatar.className='avatar';
+    avatar.textContent = (m.user || '?').slice(0,1).toUpperCase();
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble ' + (isMe? 'me':'them');
+    bubble.innerHTML = escapeHtml(m.text || '')
+      .replace(/\n/g,'<br/>')
+      .replace(/(https?:\/\/\S+)/g,'<a href="$1" target="_blank" rel="noopener">$1<\/a>');
+
+    const time = document.createElement('div');
+    time.className='time';
+    const when = new Date(m.createdAt || m.created_at || Date.now())
+      .toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    time.textContent = when;
+
+    li.appendChild(avatar);
+    const col = document.createElement('div');
+    col.style.maxWidth='100%';
+    col.appendChild(bubble); col.appendChild(time);
+    li.appendChild(col);
+
+    messagesEl.appendChild(li);
+    if(autoScroll) scrollToBottom();
+  }
+
+  function scrollToBottom(){ messagesEl.scrollTop = messagesEl.scrollHeight; }
+
+  function escapeHtml(str){
+    const p = document.createElement('p'); p.textContent = str; return p.innerHTML;
+  }
+
+  // ===== Composer actions =====
+  function sendMessage(){
+    const input = document.getElementById('messageInput');
+    const text = input.value.trim(); if(!text) return;
+
+    const payload = { text };
+    socket.emit('message', payload);
+
+    input.value=''; stopTyping();
+    onTyping(); // Reset button to 'Like' state after sending
+  }
+  function sendLike(){
+    const payload = { text:'👍' };
+    socket.emit('message', payload);
+  }
+  function handleSend(){
+    const text = document.getElementById('messageInput').value.trim();
+    if (text) { sendMessage(); } else { sendLike(); }
+  }
+
+  // Typing indicator (debounced)
+  let typingTimer; let isTyping=false; const TYPING_MS=1500;
+  function onTyping(){
+    if(!isTyping){ isTyping=true; socket.emit('typing', { user: username }); }
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(stopTyping, TYPING_MS);
+
+    const hasText = document.getElementById('messageInput').value.trim().length > 0;
+    const btn = document.getElementById('sendOrLikeBtn');
+    btn.textContent = hasText ? '➤' : '👍';
+    btn.title = hasText ? 'Send' : 'Like';
+    btn.classList.toggle('send', !hasText);
+  }
+  function stopTyping(){
+    if(!isTyping) return; isTyping=false;
+    socket.emit('stop typing', { user: username });
+  }
+  function showTyping(user){
+    const el = document.getElementById('typing');
+    document.getElementById('typing-user').textContent = user;
+    el.style.display='flex';
+    // auto hide after a while in case server misses stop event
+    clearTimeout(showTyping._t); showTyping._t = setTimeout(hideTyping, 2500);
+  }
+  function hideTyping(){ document.getElementById('typing').style.display='none'; }
+
+</script>
+</body>
+</html>
