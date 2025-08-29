@@ -86,8 +86,6 @@
     .bubble.them{ background:var(--them); color:#111827; border-bottom-left-radius:6px }
     .msg .time{ font-size:11px; color:#9ca3af; margin:0 6px 3px }
     .msg.me .time{ text-align:right }
-    .msg.me .name { text-align: right; }
-    .msg .name { font-size: 12px; font-weight: 600; color: #4b5563; margin: 0 6px 2px; }
 
     .typing{ position:absolute; left:16px; bottom:72px; display:none; align-items:center; gap:8px; color:#6b7280; font-size:13px }
     .dots{ display:inline-flex; gap:3px }
@@ -325,10 +323,6 @@
     li.appendChild(avatar);
     const col = document.createElement('div');
     col.style.maxWidth='100%';
-    const nameDiv = document.createElement('div');
-    nameDiv.className = 'name';
-    nameDiv.textContent = m.user;
-    col.appendChild(nameDiv);
     col.appendChild(bubble); col.appendChild(time);
     li.appendChild(col);
 

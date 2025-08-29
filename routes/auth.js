@@ -6,7 +6,7 @@ const User = require("../models/User");
 const router = express.Router();
 
 // Register
-router.post("/register", async (req, res) => {
+router.post("/signup", async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
@@ -21,7 +21,7 @@ router.post("/register", async (req, res) => {
     const user = new User({ username, email, password: hashed });
     await user.save();
 
-    res.json({ message: "User registered successfully" });
+    res.json({ message: "User signed up successfully" });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
   }
